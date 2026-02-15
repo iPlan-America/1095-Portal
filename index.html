@@ -682,8 +682,9 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Monthly ICHRA Allowance (per employee) <span class="req">*</span></label>
-            <input class="form-input mono" id="ichraAllowance" type="text" placeholder="$0.00">
+            <label class="form-label">Default Monthly Contribution</label>
+            <input class="form-input mono" id="ichraAllowance" type="text" placeholder="$1.00" value="$1.00">
+            <div class="form-hint">Used when per-employee amounts aren't specified. For age-banded plans, enter contributions per employee in Step 2.</div>
           </div>
         </div>
         <div class="form-group" style="margin-top:16px">
@@ -694,8 +695,8 @@
         <div class="checkbox-row" style="margin-top:16px" onclick="this.querySelector('input').click()">
           <input type="checkbox" id="multiClass">
           <div>
-            <div class="checkbox-label">Multiple employee classes with different allowances</div>
-            <div class="checkbox-desc">Check this if different groups of employees receive different ICHRA amounts</div>
+            <div class="checkbox-label">Age-banded or variable contribution amounts</div>
+            <div class="checkbox-desc">Check this if different employees receive different monthly ICHRA amounts (e.g., age-based percentage of plan cost)</div>
           </div>
         </div>
       </div>
@@ -758,7 +759,7 @@
       <div id="manual-section" class="hidden">
         <div class="info-banner blue" style="margin-top:0; margin-bottom:16px">
           <div class="info-banner-icon">&#8505;&#65039;</div>
-          <div class="info-banner-text"><strong>Required for each employee:</strong> Full legal name, Social Security Number, date of birth, home address (street, city, state, ZIP), and months of ICHRA coverage during 2025.</div>
+          <div class="info-banner-text"><strong>Required for each employee:</strong> Full legal name, Social Security Number, date of birth, home address (street, city, state, ZIP), and months of ICHRA coverage during 2025. <strong>Monthly Contribution</strong> is optional — leave blank to use the default amount from Step 1.</div>
         </div>
         <div style="overflow-x:auto">
           <table class="emp-entry-table" id="emp-entry-table">
@@ -771,6 +772,7 @@
                 <th style="min-width:120px">City *</th>
                 <th style="min-width:80px">State *</th>
                 <th style="min-width:80px">ZIP Code *</th>
+                <th style="min-width:100px">Contribution</th>
                 <th style="min-width:90px">Coverage Start</th>
                 <th style="min-width:90px">Coverage End</th>
                 <th style="width:80px">Actions</th>
@@ -1122,6 +1124,7 @@
       '<td><input class="form-input" id="emp-city-'+rid+'" placeholder="City"></td>' +
       '<td><input class="form-input mono" id="emp-state-'+rid+'" placeholder="WI" maxlength="2"></td>' +
       '<td><input class="form-input mono" id="emp-zip-'+rid+'" placeholder="54301"></td>' +
+      '<td><input class="form-input mono" id="emp-contrib-'+rid+'" placeholder="$0.00" style="width:90px"></td>' +
       '<td>'+buildMonthSelect("emp-start-"+rid, "Jan")+'</td>' +
       '<td>'+buildMonthSelect("emp-end-"+rid, "Dec")+'</td>' +
       '<td><button type="button" class="icon-btn danger" onclick="removeEmployeeRow('+rid+')" title="Remove">&#10006;</button></td>';
@@ -1159,6 +1162,7 @@
         city: val("emp-city-"+rid),
         state: val("emp-state-"+rid),
         zip: val("emp-zip-"+rid),
+        contribution: val("emp-contrib-"+rid) || "",
         coverageStart: normalizeMonth(val("emp-start-"+rid)) || 1,
         coverageEnd: normalizeMonth(val("emp-end-"+rid)) || 12
       };
@@ -1255,6 +1259,7 @@
     { key: "city", label: "City", required: true, hints: ["city","town"] },
     { key: "state", label: "State", required: true, hints: ["state","st"] },
     { key: "zip", label: "ZIP", required: true, hints: ["zip","zipcode","postal"] },
+    { key: "contribution", label: "Monthly Contribution", required: false, hints: ["contribution","monthly contribution","allowance","ichra amount","monthly amount","amount"] },
     { key: "coverageStart", label: "Coverage Start (month)", required: false, hints: ["coverage start","start month","start","coverage start month"] },
     { key: "coverageEnd", label: "Coverage End (month)", required: false, hints: ["coverage end","end month","end","coverage end month"] }
   ];
@@ -1393,6 +1398,7 @@
         city: String(r[csvMapping.city] || "").trim(),
         state: String(r[csvMapping.state] || "").trim(),
         zip: String(r[csvMapping.zip] || "").trim(),
+        contribution: csvMapping.contribution ? String(r[csvMapping.contribution] || "").trim() : "",
         coverageStart: normalizeMonth(r[csvMapping.coverageStart]) || 1,
         coverageEnd: normalizeMonth(r[csvMapping.coverageEnd]) || 12
       };
@@ -1418,7 +1424,7 @@
     }
 
     // Table preview
-    var headers = ["Row","Name","SSN","DOB","Address","City","ST","ZIP","Start","End","Issues"];
+    var headers = ["Row","Name","SSN","DOB","Address","City","ST","ZIP","Contrib","Start","End","Issues"];
     var rows = (csvEmployees || []).slice(0, 10).map(function (emp) {
       var issues = (validation && validation.byRow[emp._row]) ? validation.byRow[emp._row] : [];
       return '<tr>' +
@@ -1430,6 +1436,7 @@
         '<td>'+escapeHtml(emp.city)+'</td>' +
         '<td class="mono">'+escapeHtml((emp.state||"").toUpperCase())+'</td>' +
         '<td class="mono">'+escapeHtml(emp.zip)+'</td>' +
+        '<td class="mono">'+escapeHtml(emp.contribution || "—")+'</td>' +
         '<td class="mono">'+MONTH_NAMES[(emp.coverageStart||1)-1]+'</td>' +
         '<td class="mono">'+MONTH_NAMES[(emp.coverageEnd||12)-1]+'</td>' +
         '<td style="color:'+(issues.length ? "var(--danger)" : "var(--success)")+'">'+(issues.length ? escapeHtml(issues[0])+(issues.length>1?(" +"+(issues.length-1)+" more"):"") : "OK")+'</td>' +
@@ -1601,7 +1608,7 @@
     else if (parseInt(ichra,10) <= 0) errs.push("ICHRA enrolled count must be greater than 0.");
 
     if (!val("ichraPlatform")) errs.push("ICHRA platform is required.");
-    if (!val("ichraAllowance")) errs.push("ICHRA allowance is required.");
+    // Note: ichraAllowance defaults to $1.00 if not specified, so no longer required
 
     if (!selectedMonths.length) errs.push("Select at least one month of ICHRA coverage offered during the tax year.");
 
@@ -1895,6 +1902,9 @@ window.submitData = function () {
         coverageMonths: selectedMonths.slice()
       },
       employees: employees.map(function (e) {
+        // Resolve contribution: use employee value if provided, otherwise use company default
+        var defaultContrib = val("ichraAllowance") || "$1.00";
+        var empContrib = (e.contribution && e.contribution.trim()) ? e.contribution.trim() : defaultContrib;
         return {
           source: e._source,
           row: e._row,
@@ -1905,6 +1915,7 @@ window.submitData = function () {
           city: e.city,
           state: normalizeState(e.state),
           zip: normalizeZip(e.zip),
+          contribution: empContrib,
           coverageStart: e.coverageStart,
           coverageEnd: e.coverageEnd
         };
@@ -2059,8 +2070,8 @@ window.submitData = function () {
 
   // ------------------ Template download ------------------
   window.downloadTemplate = function () {
-    var headers = ["Full Name","SSN","DOB","Street Address","City","State","ZIP","Coverage Start","Coverage End"];
-    var example = ["Jane Doe","123-45-6789","01/15/1985","123 Main St","Green Bay","WI","54301","Jan","Dec"];
+    var headers = ["Full Name","SSN","DOB","Street Address","City","State","ZIP","Monthly Contribution","Coverage Start","Coverage End"];
+    var example = ["Jane Doe","123-45-6789","01/15/1985","123 Main St","Green Bay","WI","54301","$350.00","Jan","Dec"];
     var csv = headers.join(",") + "\n" + example.map(function (x) {
       // quote if needed
       var s = String(x).replace(/"/g,'""');
